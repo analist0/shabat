@@ -42,6 +42,7 @@ from shabbat_manager import ShabbatManager
 from vad_segmenter import VADSegmenter
 from whisper_transcriber import WhisperTranscriber
 from detector import AliyahSaleDetector
+from audio_clipper import AudioClipper
 
 # Setup logging
 logging.basicConfig(
@@ -66,6 +67,7 @@ class PostShabbatPipeline:
         self.vad_segmenter = VADSegmenter()
         self.transcriber = WhisperTranscriber()
         self.detector = AliyahSaleDetector()
+        self.audio_clipper = AudioClipper()
         
         logging.info("Post-Shabbat Processing Pipeline initialized")
 
@@ -163,7 +165,30 @@ class PostShabbatPipeline:
             for sale in sales:
                 # Find or create congregant
                 congregant_id = self.find_or_create_congregant(sale.get('buyer_name', 'Unknown'))
-                
+
+                # Step 6.1: חילוץ קטע אודיו של המכירה
+                clip_path = None
+                segment_start = sale.get('segment_start_time', 0)
+
+                try:
+                    logging.info(f"Extracting audio clip for sale at {segment_start}s")
+                    clip_path = self.audio_clipper.extract_clip_with_context(
+                        audio_path=audio_path,
+                        event_time=segment_start,
+                        context_before=5,  # 5 שניות לפני
+                        context_after=15,  # 15 שניות אחרי
+                        buyer_name=sale.get('buyer_name'),
+                        sale_id=None  # נקבל אחרי insert
+                    )
+
+                    if clip_path:
+                        logging.info(f"✓ Audio clip extracted: {clip_path}")
+                    else:
+                        logging.warning(f"Failed to extract audio clip for sale")
+
+                except Exception as e:
+                    logging.error(f"Error extracting audio clip: {e}")
+
                 # Insert aliyah sale
                 aliyah_sale_id = self.db.insert_aliyah_sale(
                     congregant_id=congregant_id,
@@ -172,10 +197,11 @@ class PostShabbatPipeline:
                     timestamp=sale.get('timestamp'),
                     audio_id=audio_id,
                     transcript_id=transcript_id,
-                    confidence=sale.get('confidence', 0)
+                    confidence=sale.get('confidence', 0),
+                    audio_clip_path=clip_path  # נתיב לקטע האודיו
                 )
-                
-                logging.info(f"Stored aliyah sale: {sale.get('buyer_name', 'Unknown')} - {sale.get('amount', 'N/A')} NIS")
+
+                logging.info(f"Stored aliyah sale #{aliyah_sale_id}: {sale.get('buyer_name', 'Unknown')} - {sale.get('amount', 'N/A')} ₪")
             
             logging.info(f"Successfully processed audio file: {audio_path}")
             return True

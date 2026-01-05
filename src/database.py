@@ -78,6 +78,8 @@ class DatabaseManager:
                 name TEXT NOT NULL,
                 email TEXT,
                 phone TEXT,
+                photo_path TEXT,
+                notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -93,6 +95,7 @@ class DatabaseManager:
                 timestamp TEXT NOT NULL,
                 audio_id INTEGER,
                 transcript_id INTEGER,
+                audio_clip_path TEXT,
                 confidence REAL,
                 verified BOOLEAN DEFAULT FALSE,
                 verifier_id INTEGER,
@@ -142,32 +145,44 @@ class DatabaseManager:
         self.connection.commit()
         return cursor.lastrowid
 
-    def insert_congregant(self, name, email=None, phone=None):
+    def insert_congregant(self, name, email=None, phone=None, photo_path=None, notes=None):
         """Insert a new congregant record"""
         cursor = self.connection.cursor()
         cursor.execute('''
-            INSERT INTO congregants (name, email, phone, updated_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-        ''', (name, email, phone))
-        
+            INSERT INTO congregants (name, email, phone, photo_path, notes, updated_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ''', (name, email, phone, photo_path, notes))
+
         self.connection.commit()
         return cursor.lastrowid
 
-    def insert_aliyah_sale(self, congregant_id, aliyah_type, amount, timestamp, 
-                          audio_id, transcript_id, confidence, verified=False, 
-                          verifier_id=None, verification_notes=None):
+    def update_congregant_photo(self, congregant_id, photo_path):
+        """Update congregant photo"""
+        cursor = self.connection.cursor()
+        cursor.execute('''
+            UPDATE congregants
+            SET photo_path = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (photo_path, congregant_id))
+
+        self.connection.commit()
+        return cursor.rowcount > 0
+
+    def insert_aliyah_sale(self, congregant_id, aliyah_type, amount, timestamp,
+                          audio_id, transcript_id, confidence, verified=False,
+                          verifier_id=None, verification_notes=None, audio_clip_path=None):
         """Insert a new aliyah sale record"""
         cursor = self.connection.cursor()
         cursor.execute('''
             INSERT INTO aliyah_sales (
-                congregant_id, aliyah_type, amount, timestamp, 
-                audio_id, transcript_id, confidence, verified, 
+                congregant_id, aliyah_type, amount, timestamp,
+                audio_id, transcript_id, audio_clip_path, confidence, verified,
                 verifier_id, verification_notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (congregant_id, aliyah_type, amount, timestamp, 
-              audio_id, transcript_id, confidence, verified, 
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (congregant_id, aliyah_type, amount, timestamp,
+              audio_id, transcript_id, audio_clip_path, confidence, verified,
               verifier_id, verification_notes))
-        
+
         self.connection.commit()
         return cursor.lastrowid
 
