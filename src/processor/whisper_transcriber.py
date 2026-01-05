@@ -41,32 +41,36 @@ class WhisperTranscriber:
     def verify_whisper_cpp(self):
         """Verify that whisper.cpp is properly installed and accessible"""
         try:
-            # Check if whisper.cpp main executable exists
-            whisper_main = Path(self.config['whisper']['model_path']).parent / "main"
-
-            if not whisper_main.exists():
-                # Try common locations for whisper.cpp
-                possible_paths = [
-                    "./whisper.cpp/main",
-                    "../whisper.cpp/main",
-                    "~/whisper.cpp/main",
-                    "/data/data/com.termux/files/usr/bin/whisper"
-                ]
-
-                found = False
-                for path in possible_paths:
-                    if Path(path).exists():
-                        whisper_main = Path(path)
-                        found = True
-                        break
-
-                if not found:
-                    logging.warning("whisper.cpp main executable not found, transcription will be simulated")
-                    self.whisper_cpp_path = None
+            # Check if whisper_bin is specified in config
+            if 'whisper_bin' in self.config['whisper']:
+                whisper_bin = Path(self.config['whisper']['whisper_bin'])
+                if whisper_bin.exists():
+                    self.whisper_cpp_path = str(whisper_bin)
+                    logging.info(f"Found whisper.cpp at: {self.whisper_cpp_path}")
                     return
 
-            self.whisper_cpp_path = str(whisper_main)
-            logging.info(f"Found whisper.cpp at: {self.whisper_cpp_path}")
+            # Fallback to legacy paths
+            possible_paths = [
+                "./whisper.cpp/build/bin/whisper-cli",
+                "./whisper.cpp/bin/whisper-cli",
+                "./whisper.cpp/main",
+                "../whisper.cpp/main",
+                "~/whisper.cpp/main",
+                "/data/data/com.termux/files/usr/bin/whisper"
+            ]
+
+            found = False
+            for path in possible_paths:
+                if Path(path).exists():
+                    self.whisper_cpp_path = str(Path(path))
+                    found = True
+                    logging.info(f"Found whisper.cpp at: {self.whisper_cpp_path}")
+                    break
+
+            if not found:
+                logging.warning("whisper.cpp executable not found, transcription will be simulated")
+                self.whisper_cpp_path = None
+
         except Exception as e:
             logging.error(f"Error verifying whisper.cpp: {e}")
             self.whisper_cpp_path = None

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-Voiseege VAD (Voice Activity Detection) Module - Uses Silero VAD
+Voiseege VAD (Voice Activity Detection) Module - Uses Silero VAD with ONNX Runtime
 """
 
 import os
 import json
 import logging
+import numpy as np
 from pathlib import Path
 from datetime import datetime
 
@@ -26,20 +27,20 @@ class VADSegmenter:
         self.config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config.json")
         self.load_config()
 
-        # Try to load Silero VAD model, but handle gracefully if not available
-        self.pytorch_available = self.check_pytorch_availability()
-        if self.pytorch_available:
+        # Try to load ONNX Runtime and Silero VAD model
+        self.onnx_available = self.check_onnx_availability()
+        if self.onnx_available:
             self.load_vad_model()
         else:
-            logging.warning("PyTorch not available, VAD functionality will be limited")
+            logging.warning("ONNX Runtime not available, VAD functionality will be limited")
 
         logging.info("VAD Segmenter initialized")
 
-    def check_pytorch_availability(self):
-        """Check if PyTorch is available"""
+    def check_onnx_availability(self):
+        """Check if ONNX Runtime is available"""
         try:
-            import torch
-            import torchaudio
+            import onnxruntime as ort
+            import numpy as np
             return True
         except ImportError:
             return False
@@ -51,68 +52,163 @@ class VADSegmenter:
         logging.info(f"Configuration loaded from {self.config_path}")
 
     def load_vad_model(self):
-        """Load the Silero VAD model"""
+        """Load the Silero VAD ONNX model"""
         try:
-            import torch
-            import torchaudio
+            import onnxruntime as ort
 
-            # Load the Silero VAD model
-            self.model, utils = torch.hub.load(
-                repo_or_dir='snakers4/silero-vad',
-                model='silero_vad',
-                force_reload=False
-            )
+            # Path to the ONNX model
+            model_path = "./models/silero_vad.onnx"
 
-            # Extract utilities
-            (get_speech_timestamps,
-             save_audio,
-             read_audio,
-             VADIterator,
-             collect_chunks) = utils
+            # Check if model exists, if not, download it
+            if not os.path.exists(model_path):
+                logging.info("Downloading Silero VAD ONNX model...")
+                self.download_silero_vad_onnx()
 
-            self.get_speech_timestamps = get_speech_timestamps
-            self.save_audio = save_audio
-            self.read_audio = read_audio
-            self.VADIterator = VADIterator
-            self.collect_chunks = collect_chunks
+            # Load the ONNX model
+            self.ort_session = ort.InferenceSession(model_path)
 
-            logging.info("Silero VAD model loaded successfully")
+            # Initialize state
+            self.reset_states()
+
+            logging.info("Silero VAD ONNX model loaded successfully")
         except Exception as e:
-            logging.error(f"Failed to load Silero VAD model: {e}")
+            logging.error(f"Failed to load Silero VAD ONNX model: {e}")
+            self.ort_session = None
+
+    def download_silero_vad_onnx(self):
+        """Download the Silero VAD ONNX model"""
+        import urllib.request
+
+        url = "https://github.com/snakers4/silero-vad/raw/master/files/silero_vad.onnx"
+        model_path = "./models/silero_vad.onnx"
+
+        os.makedirs("./models", exist_ok=True)
+
+        try:
+            urllib.request.urlretrieve(url, model_path)
+            logging.info(f"Downloaded Silero VAD ONNX model to {model_path}")
+        except Exception as e:
+            logging.error(f"Failed to download Silero VAD ONNX model: {e}")
             raise
+
+    def reset_states(self):
+        """Reset the VAD model states"""
+        self.h = np.zeros((2, 1, 64), dtype=np.float32)
+        self.c = np.zeros((2, 1, 64), dtype=np.float32)
+
+    def read_audio(self, path, target_sr=16000):
+        """Read audio file and convert to the required format"""
+        try:
+            import subprocess
+            import tempfile
+
+            # Use ffmpeg to convert audio to 16kHz mono WAV
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+                tmp_path = tmp.name
+
+            cmd = [
+                'ffmpeg', '-i', path,
+                '-ar', str(target_sr),
+                '-ac', '1',
+                '-f', 'wav',
+                '-y', tmp_path
+            ]
+
+            subprocess.run(cmd, capture_output=True, check=True)
+
+            # Read the WAV file
+            import wave
+            with wave.open(tmp_path, 'rb') as wf:
+                frames = wf.readframes(wf.getnframes())
+                audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+
+            # Clean up
+            os.unlink(tmp_path)
+
+            return audio, target_sr
+
+        except Exception as e:
+            logging.error(f"Error reading audio file {path}: {e}")
+            return None, None
 
     def segment_audio(self, audio_path):
         """
         Segment audio file using VAD to identify speech segments
         Returns list of (start_time, end_time) tuples in seconds
         """
-        if not self.pytorch_available:
-            # Fallback implementation when PyTorch is not available
-            # This is a simplified approach using sox for basic audio processing
-            logging.warning("PyTorch not available, using simplified segmentation")
+        if not self.onnx_available or self.ort_session is None:
+            # Fallback implementation when ONNX is not available
+            logging.warning("ONNX not available, using simplified segmentation")
             return self.simple_segmentation(audio_path)
 
         try:
-            import torch
-            import torchaudio
-
             # Read the audio file
-            wav, sr = torchaudio.load(audio_path)
+            audio, sr = self.read_audio(audio_path, target_sr=16000)
 
-            # Convert to mono if needed
-            if wav.shape[0] > 1:
-                wav = torch.mean(wav, dim=0, keepdim=True)
+            if audio is None:
+                return []
 
-            # Get speech timestamps
-            speech_timestamps = self.get_speech_timestamps(
-                wav,
-                self.model,
-                threshold=self.config['vad']['threshold'],
-                sampling_rate=sr,
-                min_silence_duration_ms=int(self.config['vad']['min_silence_duration'] * 1000),
-                min_speech_duration_ms=int(self.config['vad']['min_speech_duration'] * 1000),
-                window_size_samples=512
-            )
+            # Reset states
+            self.reset_states()
+
+            # Process audio in chunks
+            window_size_samples = 512  # 32ms at 16kHz
+            threshold = self.config['vad']['threshold']
+            min_silence_duration_samples = int(self.config['vad']['min_silence_duration'] * sr)
+            min_speech_duration_samples = int(self.config['vad']['min_speech_duration'] * sr)
+
+            speech_timestamps = []
+            current_speech_start = None
+            silence_start = None
+
+            for i in range(0, len(audio), window_size_samples):
+                chunk = audio[i:i + window_size_samples]
+
+                if len(chunk) < window_size_samples:
+                    # Pad the last chunk
+                    chunk = np.pad(chunk, (0, window_size_samples - len(chunk)))
+
+                # Run inference
+                chunk = chunk.reshape(1, -1).astype(np.float32)
+                ort_inputs = {
+                    'input': chunk,
+                    'h': self.h,
+                    'c': self.c,
+                    'sr': np.array([sr], dtype=np.int64)
+                }
+
+                ort_outs = self.ort_session.run(None, ort_inputs)
+                speech_prob = ort_outs[0][0][0]
+                self.h = ort_outs[1]
+                self.c = ort_outs[2]
+
+                # Update speech state
+                if speech_prob >= threshold:
+                    if current_speech_start is None:
+                        current_speech_start = i
+                    silence_start = None
+                else:
+                    if current_speech_start is not None:
+                        if silence_start is None:
+                            silence_start = i
+                        elif (i - silence_start) >= min_silence_duration_samples:
+                            # End of speech detected
+                            if (silence_start - current_speech_start) >= min_speech_duration_samples:
+                                speech_timestamps.append({
+                                    'start': current_speech_start,
+                                    'end': silence_start
+                                })
+                            current_speech_start = None
+                            silence_start = None
+
+            # Handle final segment
+            if current_speech_start is not None:
+                end = silence_start if silence_start is not None else len(audio)
+                if (end - current_speech_start) >= min_speech_duration_samples:
+                    speech_timestamps.append({
+                        'start': current_speech_start,
+                        'end': end
+                    })
 
             # Convert samples to seconds
             segments = []
@@ -126,31 +222,36 @@ class VADSegmenter:
 
         except Exception as e:
             logging.error(f"Error segmenting audio {audio_path}: {e}")
-            return []
+            return self.simple_segmentation(audio_path)
 
     def simple_segmentation(self, audio_path):
         """
-        Simplified segmentation using sox when PyTorch is not available
+        Simplified segmentation when ONNX is not available
         This is a fallback implementation
         """
-        import subprocess
-        import tempfile
-        import os
-
         try:
-            # Use sox to detect silence and speech segments
-            # This is a simplified approach that just returns the full duration
-            # as one segment when PyTorch is not available
+            import subprocess
+
             logging.info(f"Using simplified segmentation for {audio_path}")
 
-            # For now, return the full audio as one segment
-            # In a real implementation, you might use sox commands to detect segments
-            # Example: sox input.wav output.wav silence 1 0.1 1% : newfile : restart
-            return [(0.0, 30.0)]  # Return a single 30-second segment as a placeholder
+            # Get audio duration using ffprobe
+            cmd = [
+                'ffprobe', '-v', 'error',
+                '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1',
+                audio_path
+            ]
+
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            duration = float(result.stdout.strip())
+
+            # Return the full audio as one segment
+            return [(0.0, duration)]
 
         except Exception as e:
             logging.error(f"Error in simple segmentation for {audio_path}: {e}")
-            return []
+            # Return default 30-second segment if all else fails
+            return [(0.0, 30.0)]
 
     def extract_speech_segments(self, audio_path, output_dir=None):
         """
@@ -164,16 +265,29 @@ class VADSegmenter:
 
         extracted_files = []
         for i, (start_sec, end_sec) in enumerate(segments):
-            # For the simplified approach, we just return the original file
-            # since we can't do detailed segment extraction without PyTorch
             base_name = Path(audio_path).stem
-            output_path = output_dir / f"{base_name}_seg_{i:03d}.wav"
+            output_path = output_dir / f"{base_name}_seg_{i:03d}.opus"
 
-            # Since we don't have PyTorch, we'll just copy the original file
-            # or return the segment information without actual extraction
-            extracted_files.append(f"{audio_path}_seg_{i:03d}_({start_sec:.2f}s-{end_sec:.2f}s)")
+            try:
+                # Use ffmpeg to extract the segment
+                cmd = [
+                    'ffmpeg', '-i', audio_path,
+                    '-ss', str(start_sec),
+                    '-to', str(end_sec),
+                    '-c', 'copy',
+                    '-y', str(output_path)
+                ]
 
-        logging.info(f"Identified {len(extracted_files)} speech segments in {audio_path}")
+                subprocess.run(cmd, capture_output=True, check=True)
+                extracted_files.append(str(output_path))
+                logging.info(f"Extracted segment {i} to {output_path}")
+
+            except Exception as e:
+                logging.error(f"Error extracting segment {i}: {e}")
+                # Return segment info even if extraction failed
+                extracted_files.append(f"{audio_path}_seg_{i:03d}_({start_sec:.2f}s-{end_sec:.2f}s)")
+
+        logging.info(f"Extracted {len(extracted_files)} speech segments from {audio_path}")
         return extracted_files
 
     def process_directory(self, input_dir, output_dir=None):
@@ -185,28 +299,28 @@ class VADSegmenter:
             output_path = Path(output_dir)
         else:
             output_path = input_path / "segments"
-        
+
         output_path.mkdir(exist_ok=True)
-        
+
         # Find all audio files
         audio_files = list(input_path.glob("*.opus")) + list(input_path.glob("*.wav"))
-        
+
         all_segments = {}
         for audio_file in audio_files:
             logging.info(f"Processing {audio_file}")
             segments = self.segment_audio(str(audio_file))
             all_segments[str(audio_file)] = segments
-            
+
             # Extract segments if needed
             self.extract_speech_segments(str(audio_file), output_path)
-        
+
         return all_segments
 
 
 # Example usage
 if __name__ == "__main__":
     vad_segmenter = VADSegmenter()
-    
+
     # Example: Process a single audio file (if one exists)
     import sys
     if len(sys.argv) > 1:
