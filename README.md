@@ -167,6 +167,26 @@ Contributions are welcome! Please ensure any changes maintain Shabbat compliance
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
+## Repository Setup
+
+To set up this repository for remote pushing:
+
+1. Create a new repository on GitHub or your preferred Git hosting service
+2. Use the setup script to add the remote:
+   ```bash
+   ./scripts/setup_remote.sh <your_repository_url>
+   ```
+3. Push the repository:
+   ```bash
+   ./scripts/push.sh
+   ```
+
+Alternatively, you can manually add the remote and push:
+```bash
+git remote add origin <your_repository_url>
+git push -u origin main
+```
+
 ## Support
 
 For support, please open an issue in the repository or contact the maintainers.
