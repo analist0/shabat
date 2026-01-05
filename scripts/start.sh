@@ -11,6 +11,7 @@ cd "$(dirname "$0")/.." || exit 1
 # Check if the system is already running
 if pgrep -f "src/supervisor.py" > /dev/null; then
     echo "Voiseege system is already running!"
+    echo "To restart, first run: ./scripts/stop.sh"
     exit 1
 fi
 

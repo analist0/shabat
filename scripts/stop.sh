@@ -5,6 +5,9 @@
 
 echo "Stopping Voiseege system..."
 
+# Change to the project directory
+cd "$(dirname "$0")/.." || exit 1
+
 # Kill the supervisor process (which should stop all child processes)
 SUPERVISOR_PIDS=$(pgrep -f "src/supervisor.py")
 

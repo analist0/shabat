@@ -7,6 +7,9 @@ echo "Starting Voiseege live log viewer..."
 echo "Press Ctrl+C to exit"
 echo ""
 
+# Change to the project directory (one level up from scripts)
+cd "$(dirname "$0")/.." || exit 1
+
 # Check if the log directory exists
 if [ ! -d "./logs" ]; then
     echo "Error: logs directory not found!"
