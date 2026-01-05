@@ -1,63 +1,50 @@
 #!/bin/bash
-# Voiseege Stop Script
-# Stops the Voiseege Shabbat-safe audio intelligence system
 
-set -e  # Exit on any error
+# Voiseege System Stop Script
+# Stops all components of the Voiseege system
 
-echo "==========================================="
-echo "Voiseege Stop Script"
-echo "Shabbat-Safe Audio Intelligence System"
-echo "==========================================="
+echo "Stopping Voiseege system..."
 
-# Check if supervisor PID file exists
-if [ -f "supervisor.pid" ]; then
-    SUPERVISOR_PID=$(cat supervisor.pid)
-    
-    if ps -p $SUPERVISOR_PID > /dev/null; then
-        echo "Stopping supervisor process (PID: $SUPERVISOR_PID)..."
-        kill $SUPERVISOR_PID
-        
-        # Wait a moment for graceful shutdown
-        sleep 3
-        
-        # Check if process is still running
-        if ps -p $SUPERVISOR_PID > /dev/null; then
-            echo "Process still running, force killing..."
-            kill -9 $SUPERVISOR_PID
-        fi
-        
-        # Remove the PID file
-        rm supervisor.pid
-        echo "Supervisor process stopped."
-    else
-        echo "Supervisor process (PID: $SUPERVISOR_PID) not found."
-        rm supervisor.pid
-    fi
-else
-    echo "No supervisor PID file found. Looking for running processes..."
-    
-    # Try to find and kill any running voiseege processes
-    PIDS=$(ps aux | grep "python src/supervisor.py" | grep -v grep | awk '{print $2}')
-    
-    if [ ! -z "$PIDS" ]; then
-        echo "Found and stopping processes: $PIDS"
-        kill $PIDS
-        sleep 2
-        
-        # Force kill if still running
-        PIDS=$(ps aux | grep "python src/supervisor.py" | grep -v grep | awk '{print $2}')
-        if [ ! -z "$PIDS" ]; then
-            kill -9 $PIDS
-        fi
-    else
-        echo "No running Voiseege processes found."
-    fi
+# Kill the supervisor process (which should stop all child processes)
+SUPERVISOR_PIDS=$(pgrep -f "src/supervisor.py")
+
+if [ -z "$SUPERVISOR_PIDS" ]; then
+    echo "Voiseege system is not running!"
+    exit 0
 fi
 
-# Release wake lock
-echo "Releasing wake lock..."
-termux-wake-unlock
+echo "Found supervisor processes: $SUPERVISOR_PIDS"
 
-echo "==========================================="
+# Kill the supervisor process (it should handle cleanup of child processes)
+kill $SUPERVISOR_PIDS
+
+# Wait a moment for processes to terminate
+sleep 2
+
+# Check if processes are still running and force kill if necessary
+if pgrep -f "src/supervisor.py" > /dev/null; then
+    echo "Supervisor still running, force killing..."
+    pkill -9 -f "src/supervisor.py"
+fi
+
+if pgrep -f "src/recorder/recorder.py" > /dev/null; then
+    echo "Recorder still running, force killing..."
+    pkill -9 -f "src/recorder/recorder.py"
+fi
+
+if pgrep -f "src/processor/processor.py" > /dev/null; then
+    echo "Processor still running, force killing..."
+    pkill -9 -f "src/processor/processor.py"
+fi
+
+if pgrep -f "src/dashboard/server.py" > /dev/null; then
+    echo "Dashboard still running, force killing..."
+    pkill -9 -f "src/dashboard/server.py"
+fi
+
+# Stop any ongoing audio recording
+if command -v termux-microphone-record &> /dev/null; then
+    termux-microphone-record -q 2>/dev/null || true
+fi
+
 echo "Voiseege system stopped."
-echo "==========================================="

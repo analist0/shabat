@@ -119,9 +119,21 @@ Detection is rule-based first, LLM second:
 
 ## Running the System
 
+Use the provided scripts to manage the system:
+
 Start the system with:
 ```bash
-python src/supervisor.py
+./scripts/start.sh
+```
+
+Stop the system with:
+```bash
+./scripts/stop.sh
+```
+
+View live logs with:
+```bash
+./scripts/live_log.sh
 ```
 
 The supervisor will start all necessary components:

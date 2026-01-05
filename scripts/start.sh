@@ -1,49 +1,45 @@
 #!/bin/bash
-# Voiseege Startup Script
-# Starts the Voiseege Shabbat-safe audio intelligence system
 
-set -e  # Exit on any error
+# Voiseege System Start Script
+# Starts all components of the Voiseege system
 
-echo "==========================================="
-echo "Voiseege Startup Script"
-echo "Shabbat-Safe Audio Intelligence System"
-echo "==========================================="
+echo "Starting Voiseege system..."
 
-# Check if we're in the right directory
-if [ ! -f "config.json" ]; then
-    echo "Error: config.json not found. Please run this script from the voiseege directory."
+# Change to the project directory
+cd "$(dirname "$0")/.." || exit 1
+
+# Check if the system is already running
+if pgrep -f "src/supervisor.py" > /dev/null; then
+    echo "Voiseege system is already running!"
     exit 1
 fi
 
-# Ensure required directories exist
-mkdir -p audio db logs models
-
-# Start the supervisor process
-echo "Starting Voiseege Supervisor..."
+# Start the supervisor (which manages all other components)
+echo "Starting supervisor..."
 python src/supervisor.py &
 
 SUPERVISOR_PID=$!
 echo "Supervisor started with PID: $SUPERVISOR_PID"
 
-# Save the PID for potential later use
-echo $SUPERVISOR_PID > supervisor.pid
+# Wait a moment for processes to start
+sleep 3
 
-# Set up wake lock to keep the device awake
-echo "Acquiring wake lock..."
-termux-wake-lock
-
-echo "==========================================="
-echo "Voiseege system started successfully!"
-echo "Supervisor PID: $SUPERVISOR_PID"
-echo ""
-echo "To monitor the system:"
-echo "  tail -f logs/supervisor.log"
-echo "  tail -f logs/recorder.log"
-echo "  tail -f logs/processing_pipeline.log"
-echo ""
-echo "To stop the system, run:"
-echo "  ./scripts/stop.sh"
-echo "==========================================="
-
-# Wait for the supervisor process
-wait $SUPERVISOR_PID
+# Verify that the main processes are running
+if pgrep -f "src/supervisor.py" > /dev/null && \
+   pgrep -f "src/recorder/recorder.py" > /dev/null && \
+   pgrep -f "src/dashboard/server.py" > /dev/null; then
+    echo "Voiseege system started successfully!"
+    echo "Supervisor PID: $SUPERVISOR_PID"
+    echo ""
+    echo "System components:"
+    echo "- Supervisor: Manages all processes"
+    echo "- Recorder: Records audio in compliance with Shabbat rules"
+    echo "- Processor: Handles post-Shabbat processing (VAD, transcription, detection)"
+    echo "- Dashboard: Provides API for human review interface"
+    echo ""
+    echo "To view logs, run: ./scripts/live_log.sh"
+    echo "To stop the system, run: ./scripts/stop.sh"
+else
+    echo "Error: Some components failed to start!"
+    exit 1
+fi
