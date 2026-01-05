@@ -1,0 +1,108 @@
+/* Dashboard Styles */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+}
+
+.navbar-brand {
+    font-weight: bold;
+}
+
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border: 1px solid rgba(0, 0, 0, 0.125);
+}
+
+.card-header {
+    background-color: #e9ecef;
+    font-weight: 500;
+}
+
+.table th {
+    border-top: none;
+    font-weight: 600;
+}
+
+.status-badge {
+    padding: 0.25em 0.4em;
+    font-size: 75%;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.375rem;
+}
+
+.status-verified {
+    color: #fff;
+    background-color: #198754;
+}
+
+.status-unverified {
+    color: #fff;
+    background-color: #dc3545;
+}
+
+.confidence-high {
+    color: #198754;
+    font-weight: bold;
+}
+
+.confidence-medium {
+    color: #fd7e14;
+    font-weight: bold;
+}
+
+.confidence-low {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.pagination .page-item.active .page-link {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.action-btn {
+    margin-right: 0.25rem;
+}
+
+.shabbat-active {
+    background-color: #ffc107;
+    color: #000;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-weight: 500;
+}
+
+.shabbat-inactive {
+    background-color: #20c997;
+    color: white;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-weight: 500;
+}
+
+/* Audio player styling */
+audio {
+    outline: none;
+}
+
+/* Modal styling */
+.modal-header {
+    background-color: #0d6efd;
+    color: white;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container-fluid {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+    
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+}

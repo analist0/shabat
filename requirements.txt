@@ -1,0 +1,7 @@
+torch
+torchaudio
+pytz
+psutil
+flask
+flask-cors
+sqlite3

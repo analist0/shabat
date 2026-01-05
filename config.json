@@ -1,0 +1,42 @@
+{
+  "audio": {
+    "chunk_duration": 30,
+    "adaptive_chunk_min": 15,
+    "adaptive_chunk_max": 45,
+    "codec": "opus",
+    "sample_rate": 16000,
+    "bitrate": 32
+  },
+  "vad": {
+    "threshold": 0.5,
+    "min_silence_duration": 1.0,
+    "min_speech_duration": 0.25
+  },
+  "whisper": {
+    "model_path": "./models/ggml-medium.bin",
+    "language": "he",
+    "beam_size": 5,
+    "word_timestamps": true
+  },
+  "database": {
+    "path": "./db/voiseege.db",
+    "wal_enabled": true
+  },
+  "shabbat": {
+    "timezone": "Asia/Jerusalem",
+    "shabbat_start_hour": 18,
+    "shabbat_end_hour": 13,
+    "shabbat_end_day_offset": 1
+  },
+  "system": {
+    "max_temperature": 48,
+    "memory_limit_mb": 512,
+    "restart_after_files": 100,
+    "log_level": "INFO"
+  },
+  "paths": {
+    "audio_dir": "./audio/",
+    "log_dir": "./logs/",
+    "model_dir": "./models/"
+  }
+}
