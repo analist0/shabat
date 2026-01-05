@@ -185,32 +185,32 @@ class WhisperTranscriber:
         Transcribe all audio files in a directory
         """
         input_path = Path(input_dir)
-        
+
         if output_dir:
             output_path = Path(output_dir)
         else:
             output_path = input_path / "transcriptions"
-        
+
         output_path.mkdir(exist_ok=True)
-        
+
         # Find all audio files
         audio_files = list(input_path.glob("*.opus")) + list(input_path.glob("*.wav"))
-        
+
         results = {}
         for audio_file in audio_files:
             logging.info(f"Transcribing {audio_file}")
-            
+
             # Create output file path
             output_file = output_path / f"{audio_file.stem}_transcription.json"
-            
+
             result = self.transcribe_audio(str(audio_file), str(output_file))
             results[str(audio_file)] = result
-            
+
             if result:
                 # Save the result to the specified output file
                 with open(output_file, 'w', encoding='utf-8') as f:
                     json.dump(result, f, ensure_ascii=False, indent=2)
-        
+
         return results
 
 

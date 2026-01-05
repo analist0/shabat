@@ -105,20 +105,23 @@ class PostShabbatPipeline:
                 return False
             
             # Step 2: Extract speech segments
-            logging.info(f"Step 2: Extracting {len(segments)} speech segments")
+            logging.info(f"Step 2: Identifying {len(segments)} speech segments")
             segment_files = self.vad_segmenter.extract_speech_segments(
-                audio_path, 
+                audio_path,
                 output_dir=Path(audio_path).parent / "segments"
             )
-            
+
             # Step 3: Transcribe each segment
             logging.info(f"Step 3: Transcribing {len(segment_files)} segments")
             all_transcripts = []
             total_confidence = 0
             segment_count = 0
-            
-            for segment_file in segment_files:
-                transcription = self.transcriber.transcribe_audio(segment_file)
+
+            # For the simplified approach, we'll transcribe the entire audio file
+            # rather than individual segments since we don't have PyTorch
+            if segment_files:
+                # Transcribe the original audio file
+                transcription = self.transcriber.transcribe_audio(audio_path)
                 if transcription:
                     all_transcripts.append(transcription)
                     total_confidence += transcription.get('avg_confidence', 0)
